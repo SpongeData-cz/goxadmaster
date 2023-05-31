@@ -14,7 +14,7 @@ import (
 	"unsafe"
 )
 
-const STEP = bits.UintSize / 8
+const POINTER_SIZE = bits.UintSize / 8
 
 type Archive interface {
 	List() []Entry
@@ -47,9 +47,11 @@ type archive struct {
 
 /*
 Creates a new Archive. Has to be deallocated with Destroy method after use.
+
 Parameters:
   - path - path to the existing archive
-Returns: pointer to a new instance of Archive.
+Returns:
+  - pointer to a new instance of Archive.
 */
 func NewArchive(path string) *archive {
 	out := &archive{}
@@ -58,19 +60,26 @@ func NewArchive(path string) *archive {
 	out.archive = C.ArchiveNew(C.CString(path))
 	out.batch = -1
 
-	out.checkError()
+	out.updateArchiveError()
 
 	return out
 }
 
 /*
- */
+Lists content of an archive in form of NULL-terminated arrays.
+
+Entry records must be destroyed by DestroyList() call explicitly.
+Alternatively, it is possible to destroy individual entries using the Destroy() function.
+
+Returns:
+  - Slice of Entries.
+*/
 func (ego *archive) List() []Entry {
 
 	ego.entries = C.ArchiveList(ego.archive)
 	es := make([]Entry, 0)
 
-	for elem := ego.entries; *elem != nil; elem = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(elem), STEP)) {
+	for elem := ego.entries; *elem != nil; elem = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(elem), POINTER_SIZE)) {
 		es = append(es, &entry{
 			filename:   C.GoString((*elem).filename),
 			dirP:       int((*elem).dirP),
@@ -87,23 +96,35 @@ func (ego *archive) List() []Entry {
 		})
 	}
 
-	ego.checkError()
-
+	ego.updateArchiveError()
 	return es
 }
 
+/*
+Creates a NULL terminated subset of the entries array.
+
+Returns:
+  - Newly created subse,
+  - number of items in the subset (0 < number <= batch).
+*/
 func (ego *archive) makeSubSet() (**C.struct_Entry, int) {
 	subSet := (**C.struct_Entry)(C.calloc(C.ulong(ego.batch+1), C.ulong(unsafe.Sizeof(*ego.entries))))
 	tmp := subSet
 	i := 0
-	for elem := ego.batchStart; *elem != nil && elem != ego.batchEnd; elem = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(elem), STEP)) {
+	for elem := ego.batchStart; *elem != nil && elem != ego.batchEnd; elem = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(elem), POINTER_SIZE)) {
 		*subSet = *elem
-		subSet = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(subSet), STEP))
+		subSet = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(subSet), POINTER_SIZE))
 		i++
 	}
 	return tmp, i
 }
 
+/*
+Extract from the archive. If batch != -1, only batch entries are extracted.
+
+Parameters:
+  - entries - Slice of entries.
+*/
 func (ego *archive) Extract(entries []Entry) {
 	if ego.batch == 0 {
 		return
@@ -112,38 +133,71 @@ func (ego *archive) Extract(entries []Entry) {
 	} else {
 		subSet, read := ego.makeSubSet()
 
-		ego.batchStart = ego.batchEnd
-		ego.batchEnd = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(ego.batchEnd), (STEP * read)))
+		ego.setFrame(ego.batchEnd, read)
+
 		C.ArchiveExtract(ego.archive, subSet)
 		C.free(unsafe.Pointer(subSet))
 	}
 
-	ego.checkError()
-	ego.fillErrors(entries)
+	ego.updateArchiveError()
+	ego.updateEntriesErrors(entries)
 }
 
-func (ego *archive) checkError() {
+/*
+Updates Archive error.
+*/
+func (ego *archive) updateArchiveError() {
 	if ego.archive.error_num != C.NO_ERROR {
 		err := C.GoString(ego.archive.error_str)
 		ego.Err = errors.New(err)
 	}
 }
 
-func (ego *archive) fillErrors(entries []Entry) {
+/*
+Updates errors in individual entries.
+
+Parameters:
+  - entries - Slice of entries for which errors are to be updated.
+*/
+func (ego *archive) updateEntriesErrors(entries []Entry) {
 	for i := 0; i < len(entries); i++ {
-		entries[i].GetError()
+		entries[i].updateError()
 	}
 }
 
+/*
+Sets the batch to be extracted. If batch == -1, everything will be extracted at once.
+
+Parameters:
+  - batch - The number of Entries to be extracted in a batch from the array of entries,
+  - entries - The slice of Entry
+*/
 func (ego *archive) SetBatch(batch int, entries []Entry) {
-	if batch == -1 || batch >= len(entries) {
+	if batch <= -1 || batch >= len(entries) {
 		return
 	}
 	ego.batch = batch
-	ego.batchStart = ego.entries
-	ego.batchEnd = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(ego.batchStart), (STEP * ego.batch)))
+	ego.setFrame(ego.entries, ego.batch)
 }
 
+/*
+Updates the frame that shows what will subsequently be extracted.
+
+Parameters:
+  - start - Where to move the frame start pointer,
+  - step - maximum batch size.
+*/
+func (ego *archive) setFrame(start **C.struct_Entry, step int) {
+	ego.batchStart = start
+	ego.batchEnd = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(ego.batchEnd), (POINTER_SIZE * step)))
+}
+
+/*
+Destroys the Archive.
+
+Return:
+  - error, if archive has been already destroyed, nil otherwise.
+*/
 func (ego *archive) Destroy() error {
 	if ego.archive == nil {
 		return fmt.Errorf("Archive has been already destroyed.")
@@ -160,18 +214,42 @@ func (ego *archive) Destroy() error {
 	return nil
 }
 
+/*
+Sets default destination for entries at extraction.
+
+Parameters:
+  - path - The destination path.
+*/
 func (ego *archive) SetDestination(path string) {
 	C.ArchiveSetDestination(ego.archive, C.CString(path))
 }
 
+/*
+Sets default password for entries at extraction.
+
+Parameters:
+  - password - The password.
+*/
 func (ego *archive) SetPassword(password string) {
 	C.ArchiveSetPassword(ego.archive, C.CString(password))
 }
 
+/*
+Sets default encoding name for entries at extraction.
+
+Parameters:
+  - encodingName - The encoding name.
+*/
 func (ego *archive) SetEncodingName(encodingName string) {
 	C.ArchiveSetEncodingName(ego.archive, C.CString(encodingName))
 }
 
+/*
+Sets default password encoding name for entries at extraction.
+
+Parameters:
+  - passEncodingName - The password encoding name.
+*/
 func (ego *archive) SetPasswordEncodingName(passEncodingName string) {
 	C.ArchiveSetPasswordEncodingName(ego.archive, C.CString(passEncodingName))
 }
@@ -183,35 +261,68 @@ func goBoolToCInt(param bool) C.int {
 	return C.int(0)
 }
 
+/*
+Sets if always overwrite files if they are present on the destination path.
+
+Parameters:
+  - alwaysOverwriteFiles
+*/
 func (ego *archive) SetAlwaysOverwritesFiles(alwaysOverwriteFiles bool) {
 
 	C.ArchiveSetAlwaysOverwritesFiles(ego.archive, goBoolToCInt(alwaysOverwriteFiles))
 }
 
-func (ego *archive) SetAlwaysRenamesFiles(alwaysRenamesFiles bool) {
-	C.ArchiveSetAlwaysRenamesFiles(ego.archive, goBoolToCInt(alwaysRenamesFiles))
-}
+/*
+Sets if always skip files on error.
 
+Parameters:
+  - alwaysSkipsFiles
+*/
 func (ego *archive) SetAlwaysSkipsFiles(alwaysSkipsFiles bool) {
 	C.ArchiveSetAlwaysSkipsFiles(ego.archive, goBoolToCInt(alwaysSkipsFiles))
 }
 
+/*
+Sets if extract also included subarchives. Not recommended set to yes - unsufficient testing.
+
+Parameters:
+  - extractsSubArchives
+*/
 func (ego *archive) SetExtractsSubArchives(extractsSubArchives bool) {
 	C.ArchiveSetExtractsSubArchives(ego.archive, goBoolToCInt(extractsSubArchives))
 }
 
+/*
+Sets if propagate relevant metadata (passwords etc.). Not recommended set to yes - unsufficient testing.
+
+Parameters:
+  - propagatesRelevantMetadata
+*/
 func (ego *archive) SetPropagatesRelevantMetadata(propagatesRelevantMetadata bool) {
 	C.ArchiveSetPropagatesRelevantMetadata(ego.archive, goBoolToCInt(propagatesRelevantMetadata))
 }
 
+/*
+Sets if to set entries' modification time also to the destination files.
+
+Parameters:
+  - copiesArchiveModificationTimeToEnclosingDirectory
+*/
 func (ego *archive) SetCopiesArchiveModificationTimeToEnclosingDirectory(copiesArchiveModificationTimeToEnclosingDirectory bool) {
 	C.ArchiveSetCopiesArchiveModificationTimeToEnclosingDirectory(ego.archive, goBoolToCInt(copiesArchiveModificationTimeToEnclosingDirectory))
 }
 
+/*
+Sets if to use MacOS forking style. Not recommended - not tested on Linux, just for completeness.
+
+Parameters:
+  - macResourceForkStyle
+*/
 func (ego *archive) SetMacResourceForkStyle(macResourceForkStyle bool) {
 	C.ArchiveSetMacResourceForkStyle(ego.archive, goBoolToCInt(macResourceForkStyle))
 }
 
+// TODO: What aboout this?
 func (ego *archive) SetPerIndexRenamedFiles(perIndexRenamedFiles bool) {
 	C.ArchiveSetPerIndexRenamedFiles(ego.archive, goBoolToCInt(perIndexRenamedFiles))
 }

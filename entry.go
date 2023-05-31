@@ -26,6 +26,7 @@ type Entry interface {
 	GetSize() uint
 	SetRenaming(string)
 	Destroy() error
+	updateError()
 }
 
 type entry struct {
@@ -43,46 +44,81 @@ type entry struct {
 	entryC     *C.struct_Entry
 }
 
-// Getters
+/*
+Get full path with filename within the archive.
+*/
 func (ego *entry) GetFilename() string {
 	return ego.filename
 }
 
+/*
+Predicate - is directory?
+*/
 func (ego *entry) GetDir() bool {
 	return ego.dirP != 0
 }
 
+/*
+Predicate - is link?
+*/
 func (ego *entry) GetLink() bool {
 	return ego.linkP != 0
 }
 
+/*
+Predicate - is a resource?
+*/
 func (ego *entry) GetResource() bool {
 	return ego.resourceP != 0
 }
 
+/*
+Predicate - is corrupted?
+*/
 func (ego *entry) GetCorrupted() bool {
 	return ego.corruptedP != 0
 }
 
+/*
+Predicate - is encrypted by using of password?
+*/
 func (ego *entry) GetEncrypted() bool {
 	return ego.encryptedP != 0
 }
 
+/*
+Get Entry unique identifier.
+*/
 func (ego *entry) GetEid() uint32 {
 	return ego.eid
 }
 
+/*
+Get Entry detected encoding.
+*/
 func (ego *entry) GetEncoding() string {
 	return ego.encoding
 }
 
+/*
+Get Entry renaming
+
+You may set entry destination by hand by setting this.
+*/
 func (ego *entry) GetRenaming() string {
 	return ego.renaming
 }
 
+func (ego *entry) updateError() {
+	ego.err = ego.entryC.error
+}
+
+/*
+Get error record.
+*/
 func (ego *entry) GetError() error {
 
-	ego.err = ego.entryC.error
+	ego.updateError()
 
 	if ego.err == nil {
 		return nil
@@ -92,15 +128,30 @@ func (ego *entry) GetError() error {
 	return errors.New(err)
 }
 
+/*
+Get unpacked size.
+*/
 func (ego *entry) GetSize() uint {
 	return ego.size
 }
 
+/*
+Sets renaming for the entry from constant string and allocates copy.
+
+Parameters:
+  - renaming - new name
+*/
 func (ego *entry) SetRenaming(renaming string) {
 	C.EntrySetRenaming(ego.entryC, C.CString(renaming))
 	ego.renaming = renaming
 }
 
+/*
+Destroys individual entry.
+
+Returns:
+  - error if entry has been already destroyed.
+*/
 func (ego *entry) Destroy() error {
 	if ego.entryC == nil {
 		return fmt.Errorf("Entry has been already destroyed.")
@@ -111,6 +162,16 @@ func (ego *entry) Destroy() error {
 	return nil
 }
 
+// TODO: Should it try to destroy others, or just throw error?
+/*
+Destroys a slice of entries.
+
+Parameters:
+  - entries - Slice of entries to be destroyed.
+
+Returns:
+  - error if any of the entry has already been destroyed.
+*/
 func DestroyList(entries []Entry) error {
 	for j := 0; j < len(entries); j++ {
 		curr := entries[j]

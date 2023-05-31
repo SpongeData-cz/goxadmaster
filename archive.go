@@ -132,9 +132,10 @@ func (ego *archive) Extract(entries []Entry) {
 	} else {
 		subSet, read := ego.makeSubSet()
 
-		ego.setFrame(ego.batchEnd, read)
-
-		C.ArchiveExtract(ego.archive, subSet)
+		if read != 0 {
+			ego.setFrame(ego.batchEnd, read)
+			C.ArchiveExtract(ego.archive, subSet)
+		}
 		C.free(unsafe.Pointer(subSet))
 	}
 

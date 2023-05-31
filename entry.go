@@ -139,7 +139,7 @@ func (ego *entry) GetSize() uint {
 Sets renaming for the entry from constant string and allocates copy.
 
 Parameters:
-  - renaming - new name
+  - renaming - path with a new name
 */
 func (ego *entry) SetRenaming(renaming string) {
 	C.EntrySetRenaming(ego.entryC, C.CString(renaming))
@@ -162,7 +162,6 @@ func (ego *entry) Destroy() error {
 	return nil
 }
 
-// TODO: Should it try to destroy others, or just throw error?
 /*
 Destroys a slice of entries.
 

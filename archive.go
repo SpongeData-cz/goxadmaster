@@ -26,7 +26,6 @@ type Archive interface {
 	SetEncodingName(string)
 	SetPasswordEncodingName(string)
 	SetAlwaysOverwritesFiles(bool)
-	SetAlwaysRenamesFiles(bool)
 	SetAlwaysSkipsFiles(bool)
 	SetExtractsSubArchives(bool)
 	SetPropagatesRelevantMetadata(bool)
@@ -189,7 +188,7 @@ Parameters:
 */
 func (ego *archive) setFrame(start **C.struct_Entry, step int) {
 	ego.batchStart = start
-	ego.batchEnd = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(ego.batchEnd), (POINTER_SIZE * step)))
+	ego.batchEnd = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(ego.batchStart), (POINTER_SIZE * step)))
 }
 
 /*
@@ -216,6 +215,7 @@ func (ego *archive) Destroy() error {
 
 /*
 Sets default destination for entries at extraction.
+Destination setting is important for not renamed entries only. Otherwise ignored.
 
 Parameters:
   - path - The destination path.
@@ -320,9 +320,4 @@ Parameters:
 */
 func (ego *archive) SetMacResourceForkStyle(macResourceForkStyle bool) {
 	C.ArchiveSetMacResourceForkStyle(ego.archive, goBoolToCInt(macResourceForkStyle))
-}
-
-// TODO: What aboout this?
-func (ego *archive) SetPerIndexRenamedFiles(perIndexRenamedFiles bool) {
-	C.ArchiveSetPerIndexRenamedFiles(ego.archive, goBoolToCInt(perIndexRenamedFiles))
 }

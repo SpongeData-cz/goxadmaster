@@ -31,13 +31,12 @@ type Archive interface {
 	SetPropagatesRelevantMetadata(bool)
 	SetCopiesArchiveModificationTimeToEnclosingDirectory(bool)
 	SetMacResourceForkStyle(bool)
-	SetPerIndexRenamedFiles(bool)
 }
 
 type archive struct {
 	path       string
 	Err        error
-	batch      int // is valid 0
+	batch      int
 	batchStart **C.struct_Entry
 	batchEnd   **C.struct_Entry
 	entries    **C.struct_Entry
@@ -65,7 +64,7 @@ func NewArchive(path string) *archive {
 }
 
 /*
-Lists content of an archive in form of NULL-terminated arrays.
+Lists content of an archive in form of arrays.
 
 Entry records must be destroyed by DestroyList() call explicitly.
 Alternatively, it is possible to destroy individual entries using the Destroy() function.
@@ -119,7 +118,7 @@ func (ego *archive) makeSubSet() (**C.struct_Entry, int) {
 }
 
 /*
-Extract from the archive. If batch != -1, only batch entries are extracted.
+Extract from the archive. If batch > -1, only batch entries are extracted.
 
 Parameters:
   - entries - Slice of entries.
@@ -166,11 +165,12 @@ func (ego *archive) updateEntriesErrors(entries []Entry) {
 }
 
 /*
-Sets the batch to be extracted. If batch == -1, everything will be extracted at once.
+Sets the batch, which specifies how many Entries to extract.
+If batch <= -1, everything will be extracted at once.
 
 Parameters:
-  - batch - The number of Entries to be extracted in a batch from the array of entries,
-  - entries - The slice of Entry
+  - batch - number of Entries,
+  - entries - The slice of Entries.
 */
 func (ego *archive) SetBatch(batch int, entries []Entry) {
 	if batch <= -1 || batch >= len(entries) {

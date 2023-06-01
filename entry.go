@@ -13,6 +13,9 @@ import (
 )
 
 type Entry interface {
+	/*
+		Get full path with filename within the archive.
+	*/
 	GetFilename() string
 	GetDir() bool
 	GetLink() bool
@@ -25,6 +28,12 @@ type Entry interface {
 	GetError() error
 	GetSize() uint
 	SetRenaming(string)
+	/*
+		Destroys individual entry.
+
+		Returns:
+		  - error if entry has been already destroyed.
+	*/
 	Destroy() error
 	updateError()
 }
@@ -44,9 +53,6 @@ type entry struct {
 	entryC     *C.struct_Entry
 }
 
-/*
-Get full path with filename within the archive.
-*/
 func (ego *entry) GetFilename() string {
 	return ego.filename
 }
@@ -101,7 +107,7 @@ func (ego *entry) GetEncoding() string {
 }
 
 /*
-Get Entry renaming
+Get Entry renaming.
 
 You may set entry destination by hand by setting this.
 */
@@ -139,19 +145,13 @@ func (ego *entry) GetSize() uint {
 Sets renaming for the entry from constant string and allocates copy.
 
 Parameters:
-  - renaming - path with a new name
+  - renaming - path with a new name.
 */
 func (ego *entry) SetRenaming(renaming string) {
 	C.EntrySetRenaming(ego.entryC, C.CString(renaming))
 	ego.renaming = renaming
 }
 
-/*
-Destroys individual entry.
-
-Returns:
-  - error if entry has been already destroyed.
-*/
 func (ego *entry) Destroy() error {
 	if ego.entryC == nil {
 		return fmt.Errorf("Entry has been already destroyed.")
@@ -163,10 +163,10 @@ func (ego *entry) Destroy() error {
 }
 
 /*
-Destroys a slice of entries.
+Destroys a slice of Entries.
 
 Parameters:
-  - entries - Slice of entries to be destroyed.
+  - entries - slice of Entries to be destroyed.
 
 Returns:
   - error if any of the entry has already been destroyed.

@@ -92,6 +92,41 @@ func TestXADD(t *testing.T) {
 			t.Error(ar.Err.Error())
 		}
 	})
+
+	t.Run("DoubleDestroy", func(t *testing.T) {
+		ar := NewArchive("./fixtures/easy.zip")
+
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		entries := ar.List()
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		err := DestroyList(entries)
+		if err != nil {
+			t.Error(err.Error())
+		}
+		err = DestroyList(entries)
+		if err == nil {
+			t.Error("Shoud throw an error, the entries have already been destroyed once.")
+		}
+
+		err = ar.Destroy()
+		if err != nil {
+			t.Error(err.Error())
+		}
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		err = ar.Destroy()
+		if err == nil {
+			t.Error("Shoud throw an error, the archive has already been destroyed once.")
+		}
+	})
 	t.Run("batch", func(t *testing.T) {
 		ar := NewArchive("./fixtures/easy.zip")
 		if ar.Err != nil {
@@ -304,7 +339,6 @@ func TestXADD(t *testing.T) {
 			if err != nil {
 				entryErr := fmt.Sprintf("WARNING: %s, WARNING MSG: %s\n", curr.GetFilename(), err.Error())
 				println(entryErr)
-				// fmt.Printf("WARNING: %s, WARNING MSG: %s\n", curr.GetFilename(), err.Error())
 				// t.Error(entryErr)
 			}
 		}
@@ -330,7 +364,7 @@ func TestXADD(t *testing.T) {
 
 	})
 
-	t.Run("getters", func(t *testing.T) {
+	t.Run("gettersSetters", func(t *testing.T) {
 
 		archive := NewArchive("./fixtures/easy.zip")
 
@@ -340,6 +374,15 @@ func TestXADD(t *testing.T) {
 
 		archive.SetDestination("./fixtures/extracted")
 		archive.SetAlwaysOverwritesFiles(true)
+
+		// For the test
+		archive.SetEncodingName("")
+		archive.SetPasswordEncodingName("")
+		archive.SetAlwaysSkipsFiles(false)
+		archive.SetExtractsSubArchives(false)
+		archive.SetPropagatesRelevantMetadata(false)
+		archive.SetCopiesArchiveModificationTimeToEnclosingDirectory(false)
+		archive.SetMacResourceForkStyle(false)
 
 		entries := archive.List()
 		if archive.Err != nil {
@@ -363,10 +406,9 @@ func TestXADD(t *testing.T) {
 		if curr.GetError() != nil {
 			t.Error("An error is found when it shouldn't be.")
 		}
-
-		archive.Extract(entries)
-		if archive.Err != nil {
-			t.Error(archive.Err.Error())
+		// Possibility of different size
+		if curr.GetSize() != 8 {
+			t.Error("Wrong size.")
 		}
 
 		err := DestroyList(entries)
@@ -380,15 +422,6 @@ func TestXADD(t *testing.T) {
 		}
 		if archive.Err != nil {
 			t.Error(archive.Err.Error())
-		}
-
-		err = checkFiles(5, true)
-		if err != nil {
-			t.Error(err.Error())
-		}
-		err = removeExtracted()
-		if err != nil {
-			t.Error(err.Error())
 		}
 
 	})

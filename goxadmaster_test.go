@@ -9,38 +9,33 @@ import (
 	. "github.com/SpongeData-cz/goxadmaster"
 )
 
-func TestXADD(t *testing.T) {
+func TestXAD(t *testing.T) {
 
 	t.Run("example", func(t *testing.T) {
 
-		archive := NewArchive("./fixtures/easy.zip")
-
-		if archive.Err != nil {
-			t.Error(archive.Err.Error())
+		ar := NewArchive("./fixtures/easy.zip")
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
 		}
 
 		pathToExtract := "./fixtures/extracted/easy/"
+		ar.SetDestination(pathToExtract)
+		ar.SetAlwaysOverwritesFiles(true)
 
-		archive.SetDestination(pathToExtract)
-		archive.SetAlwaysOverwritesFiles(true)
-
-		entries := archive.List()
-
-		if archive.Err != nil {
-			t.Error(archive.Err.Error())
+		entries := ar.List()
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
 		}
 
-		// Optional entries rename
 		for i := 0; i < len(entries); i++ {
 			curr := entries[i]
 			newName := fmt.Sprintf("binary%d.bin", i)
 			curr.SetRenaming(pathToExtract + newName)
 		}
 
-		archive.Extract(entries)
-
-		if archive.Err != nil {
-			t.Error(archive.Err.Error())
+		ar.Extract(entries)
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
 		}
 
 		for i := 0; i < len(entries); i++ {
@@ -56,64 +51,6 @@ func TestXADD(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		err = archive.Destroy()
-		if err != nil {
-			t.Error(err.Error())
-		}
-		if archive.Err != nil {
-			t.Error(archive.Err.Error())
-		}
-
-		err = checkFiles(5, true)
-		if err != nil {
-			t.Error(err.Error())
-		}
-		err = removeExtracted()
-		if err != nil {
-			t.Error(err.Error())
-		}
-
-	})
-
-	t.Run("nonExistentArchive", func(t *testing.T) {
-		ar := NewArchive("./fixtures/nonExist.zip")
-
-		if ar.Err == nil {
-			t.Error("Should throw an error.")
-		}
-
-		arErr := ar.Err
-
-		err := ar.Destroy()
-		if err != nil {
-			t.Error(err.Error())
-		}
-		if ar.Err != arErr {
-			t.Error(ar.Err.Error())
-		}
-	})
-
-	t.Run("DoubleDestroy", func(t *testing.T) {
-		ar := NewArchive("./fixtures/easy.zip")
-
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		entries := ar.List()
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		err := DestroyList(entries)
-		if err != nil {
-			t.Error(err.Error())
-		}
-		err = DestroyList(entries)
-		if err == nil {
-			t.Error("Shoud throw an error, the entries have already been destroyed once.")
-		}
-
 		err = ar.Destroy()
 		if err != nil {
 			t.Error(err.Error())
@@ -122,52 +59,6 @@ func TestXADD(t *testing.T) {
 			t.Error(ar.Err.Error())
 		}
 
-		err = ar.Destroy()
-		if err == nil {
-			t.Error("Shoud throw an error, the archive has already been destroyed once.")
-		}
-	})
-	t.Run("batch", func(t *testing.T) {
-		ar := NewArchive("./fixtures/easy.zip")
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		ar.SetDestination("./fixtures/extracted")
-		ar.SetAlwaysOverwritesFiles(true)
-
-		entries := ar.List()
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		ar.SetBatch(2, entries)
-
-		for i := 0; i < len(entries); i++ {
-			ar.Extract(entries)
-			if ar.Err != nil {
-				t.Error(ar.Err.Error())
-			}
-		}
-
-		for i := 0; i < len(entries); i++ {
-			curr := entries[i]
-			err := curr.GetError()
-			if err != nil {
-				fmt.Printf("WARNING: %s, WARNING MSG: %s", curr.GetFilename(), err.Error())
-			}
-		}
-
-		err := ar.Destroy()
-		if err != nil {
-			t.Error(err.Error())
-		}
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		DestroyList(entries)
-
 		err = checkFiles(5, true)
 		if err != nil {
 			t.Error(err.Error())
@@ -176,99 +67,11 @@ func TestXADD(t *testing.T) {
 		if err != nil {
 			t.Error(err.Error())
 		}
-	})
-
-	t.Run("negativeBatch", func(t *testing.T) {
-		ar := NewArchive("./fixtures/easy.zip")
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		ar.SetDestination("./fixtures/extracted")
-		ar.SetAlwaysOverwritesFiles(true)
-
-		entries := ar.List()
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		ar.SetBatch(-1, entries)
-
-		for i := 0; i < len(entries); i++ {
-			ar.Extract(entries)
-			if ar.Err != nil {
-				t.Error(ar.Err.Error())
-			}
-		}
-
-		for i := 0; i < len(entries); i++ {
-			curr := entries[i]
-			err := curr.GetError()
-			if err != nil {
-				fmt.Printf("WARNING: %s, WARNING MSG: %s", curr.GetFilename(), err.Error())
-			}
-		}
-
-		err := ar.Destroy()
-		if err != nil {
-			t.Error(err.Error())
-		}
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		DestroyList(entries)
-
-		err = checkFiles(5, true)
-		if err != nil {
-			t.Error(err.Error())
-		}
-		err = removeExtracted()
-		if err != nil {
-			t.Error(err.Error())
-		}
-	})
-
-	t.Run("emptyBatch", func(t *testing.T) {
-		ar := NewArchive("./fixtures/easy.zip")
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		ar.SetDestination("./fixtures/extracted")
-		ar.SetAlwaysOverwritesFiles(true)
-
-		entries := ar.List()
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		ar.SetBatch(0, entries)
-
-		for i := 0; i < len(entries); i++ {
-			ar.Extract(entries)
-			if ar.Err != nil {
-				t.Error(ar.Err)
-			}
-		}
-
-		err := ar.Destroy()
-		if err != nil {
-			t.Error(err.Error())
-		}
-		if ar.Err != nil {
-			t.Error(ar.Err.Error())
-		}
-
-		DestroyList(entries)
-
-		err = checkFiles(0, false)
-		if err != nil {
-			t.Error(err.Error())
-		}
 
 	})
+
 	t.Run("rename", func(t *testing.T) {
+
 		ar := NewArchive("./fixtures/easy.zip")
 		if ar.Err != nil {
 			t.Error(ar.Err.Error())
@@ -300,7 +103,10 @@ func TestXADD(t *testing.T) {
 			t.Error(ar.Err.Error())
 		}
 
-		DestroyList(entries)
+		err = DestroyList(entries)
+		if err != nil {
+			t.Error(err.Error())
+		}
 
 		err = checkFiles(5, true)
 		if err != nil {
@@ -314,6 +120,7 @@ func TestXADD(t *testing.T) {
 	})
 
 	t.Run("passwordArchive", func(t *testing.T) {
+
 		ar := NewArchive("./fixtures/Passworded.zip")
 		if ar.Err != nil {
 			t.Error(ar.Err.Error())
@@ -338,8 +145,7 @@ func TestXADD(t *testing.T) {
 			err := curr.GetError()
 			if err != nil {
 				entryErr := fmt.Sprintf("WARNING: %s, WARNING MSG: %s\n", curr.GetFilename(), err.Error())
-				println(entryErr)
-				// t.Error(entryErr)
+				println(entryErr) // or t.Error(entryErr)
 			}
 		}
 
@@ -351,7 +157,10 @@ func TestXADD(t *testing.T) {
 			t.Error(ar.Err.Error())
 		}
 
-		DestroyList(entries)
+		err = DestroyList(entries)
+		if err != nil {
+			t.Error(err.Error())
+		}
 
 		err = checkFiles(5, true)
 		if err != nil {
@@ -366,27 +175,25 @@ func TestXADD(t *testing.T) {
 
 	t.Run("gettersSetters", func(t *testing.T) {
 
-		archive := NewArchive("./fixtures/easy.zip")
-
-		if archive.Err != nil {
-			t.Error(archive.Err.Error())
+		ar := NewArchive("./fixtures/easy.zip")
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
 		}
 
-		archive.SetDestination("./fixtures/extracted")
-		archive.SetAlwaysOverwritesFiles(true)
-
 		// For the test
-		archive.SetEncodingName("")
-		archive.SetPasswordEncodingName("")
-		archive.SetAlwaysSkipsFiles(false)
-		archive.SetExtractsSubArchives(false)
-		archive.SetPropagatesRelevantMetadata(false)
-		archive.SetCopiesArchiveModificationTimeToEnclosingDirectory(false)
-		archive.SetMacResourceForkStyle(false)
+		ar.SetDestination("./fixtures/extracted")
+		ar.SetAlwaysOverwritesFiles(true)
+		ar.SetEncodingName("")
+		ar.SetPasswordEncodingName("")
+		ar.SetAlwaysSkipsFiles(false)
+		ar.SetExtractsSubArchives(false)
+		ar.SetPropagatesRelevantMetadata(false)
+		ar.SetCopiesArchiveModificationTimeToEnclosingDirectory(false)
+		ar.SetMacResourceForkStyle(false)
 
-		entries := archive.List()
-		if archive.Err != nil {
-			t.Error(archive.Err.Error())
+		entries := ar.List()
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
 		}
 
 		curr := entries[0]
@@ -408,7 +215,7 @@ func TestXADD(t *testing.T) {
 		}
 		// Possibility of different size
 		if curr.GetSize() != 8 {
-			t.Error("Wrong size.")
+			t.Error("Wrong size. (Possibility of different size)")
 		}
 
 		err := DestroyList(entries)
@@ -416,16 +223,230 @@ func TestXADD(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		err = archive.Destroy()
+		err = ar.Destroy()
 		if err != nil {
 			t.Error(err.Error())
 		}
-		if archive.Err != nil {
-			t.Error(archive.Err.Error())
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
 		}
 
 	})
 
+}
+
+func TestBatch(t *testing.T) {
+
+	t.Run("batch", func(t *testing.T) {
+
+		ar := NewArchive("./fixtures/easy.zip")
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		ar.SetDestination("./fixtures/extracted")
+		ar.SetAlwaysOverwritesFiles(true)
+
+		entries := ar.List()
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		ar.SetBatch(2, entries)
+
+		// len(entries) / batch
+		iteration := (len(entries) / 2) + 1
+
+		for i := 0; i < iteration; i++ {
+			ar.Extract(entries)
+			if ar.Err != nil {
+				t.Error(ar.Err.Error())
+			}
+		}
+
+		for i := 0; i < len(entries); i++ {
+			curr := entries[i]
+			err := curr.GetError()
+			if err != nil {
+				fmt.Printf("WARNING: %s, WARNING MSG: %s", curr.GetFilename(), err.Error())
+			}
+		}
+
+		err := ar.Destroy()
+		if err != nil {
+			t.Error(err.Error())
+		}
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		err = DestroyList(entries)
+		if err != nil {
+			t.Error(err.Error())
+		}
+
+		err = checkFiles(5, true)
+		if err != nil {
+			t.Error(err.Error())
+		}
+		err = removeExtracted()
+		if err != nil {
+			t.Error(err.Error())
+		}
+	})
+
+	t.Run("negativeBatch", func(t *testing.T) {
+
+		ar := NewArchive("./fixtures/easy.zip")
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		ar.SetDestination("./fixtures/extracted")
+		ar.SetAlwaysOverwritesFiles(true)
+
+		entries := ar.List()
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		// Everything will be extracted at once.
+		ar.SetBatch(-1, entries)
+
+		ar.Extract(entries)
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		for i := 0; i < len(entries); i++ {
+			curr := entries[i]
+			err := curr.GetError()
+			if err != nil {
+				fmt.Printf("WARNING: %s, WARNING MSG: %s", curr.GetFilename(), err.Error())
+			}
+		}
+
+		err := ar.Destroy()
+		if err != nil {
+			t.Error(err.Error())
+		}
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		err = DestroyList(entries)
+		if err != nil {
+			t.Error(err.Error())
+		}
+
+		err = checkFiles(5, true)
+		if err != nil {
+			t.Error(err.Error())
+		}
+		err = removeExtracted()
+		if err != nil {
+			t.Error(err.Error())
+		}
+	})
+
+	t.Run("emptyBatch", func(t *testing.T) {
+
+		ar := NewArchive("./fixtures/easy.zip")
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		ar.SetDestination("./fixtures/extracted")
+		ar.SetAlwaysOverwritesFiles(true)
+
+		entries := ar.List()
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		// Nothing will be extracted.
+		ar.SetBatch(0, entries)
+
+		ar.Extract(entries)
+		if ar.Err != nil {
+			t.Error(ar.Err)
+		}
+
+		err := ar.Destroy()
+		if err != nil {
+			t.Error(err.Error())
+		}
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		err = DestroyList(entries)
+		if err != nil {
+			t.Error(err.Error())
+		}
+
+		err = checkFiles(0, false)
+		if err != nil {
+			t.Error(err.Error())
+		}
+
+	})
+}
+
+func TestErr(t *testing.T) {
+
+	t.Run("nonExistentArchive", func(t *testing.T) {
+
+		ar := NewArchive("./fixtures/nonExist.zip")
+		if ar.Err == nil {
+			t.Error("Should throw an error.")
+		}
+
+		arErr := ar.Err
+
+		err := ar.Destroy()
+		if err != nil {
+			t.Error(err.Error())
+		}
+		if ar.Err != arErr {
+			t.Error(ar.Err.Error())
+		}
+	})
+
+	t.Run("DoubleDestroy", func(t *testing.T) {
+
+		ar := NewArchive("./fixtures/easy.zip")
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		entries := ar.List()
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		err := DestroyList(entries)
+		if err != nil {
+			t.Error(err.Error())
+		}
+		err = DestroyList(entries)
+		if err == nil {
+			t.Error("Shoud throw an error, the entries have already been destroyed once.")
+		}
+
+		err = ar.Destroy()
+		if err != nil {
+			t.Error(err.Error())
+		}
+		if ar.Err != nil {
+			t.Error(ar.Err.Error())
+		}
+
+		err = ar.Destroy()
+		if err == nil {
+			t.Error("Shoud throw an error, the archive has already been destroyed once.")
+		}
+	})
 }
 
 func checkFiles(numOfFiles int, easy bool) error {
@@ -452,6 +473,7 @@ func checkFiles(numOfFiles int, easy bool) error {
 }
 
 func removeExtracted() error {
+
 	path := "./fixtures/extracted/easy"
 
 	err := os.RemoveAll(path)

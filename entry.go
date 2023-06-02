@@ -12,10 +12,7 @@ import (
 	"fmt"
 )
 
-type Entry interface {
-	/*
-		Get full path with filename within the archive.
-	*/
+type IEntry interface {
 	GetFilename() string
 	GetDir() bool
 	GetLink() bool
@@ -28,23 +25,17 @@ type Entry interface {
 	GetError() error
 	GetSize() uint
 	SetRenaming(string)
-	/*
-		Destroys individual entry.
-
-		Returns:
-		  - error if entry has been already destroyed.
-	*/
 	Destroy() error
 	updateError()
 }
 
-type entry struct {
+type Entry struct {
 	filename   string
-	dirP       int
-	linkP      int
-	resourceP  int
-	corruptedP int
-	encryptedP int
+	dirP       bool
+	linkP      bool
+	resourceP  bool
+	corruptedP bool
+	encryptedP bool
 	eid        uint32
 	encoding   string
 	renaming   string
@@ -53,76 +44,79 @@ type entry struct {
 	entryC     *C.struct_Entry
 }
 
-func (ego *entry) GetFilename() string {
+/*
+Get full path with filename within the archive.
+*/
+func (ego *Entry) GetFilename() string {
 	return ego.filename
 }
 
 /*
 Predicate - is directory?
 */
-func (ego *entry) GetDir() bool {
-	return ego.dirP != 0
+func (ego *Entry) GetDir() bool {
+	return ego.dirP
 }
 
 /*
 Predicate - is link?
 */
-func (ego *entry) GetLink() bool {
-	return ego.linkP != 0
+func (ego *Entry) GetLink() bool {
+	return ego.linkP
 }
 
 /*
 Predicate - is a resource?
 */
-func (ego *entry) GetResource() bool {
-	return ego.resourceP != 0
+func (ego *Entry) GetResource() bool {
+	return ego.resourceP
 }
 
 /*
 Predicate - is corrupted?
 */
-func (ego *entry) GetCorrupted() bool {
-	return ego.corruptedP != 0
+func (ego *Entry) GetCorrupted() bool {
+	return ego.corruptedP
 }
 
 /*
 Predicate - is encrypted by using of password?
 */
-func (ego *entry) GetEncrypted() bool {
-	return ego.encryptedP != 0
+func (ego *Entry) GetEncrypted() bool {
+	return ego.encryptedP
 }
 
 /*
 Get Entry unique identifier.
 */
-func (ego *entry) GetEid() uint32 {
+func (ego *Entry) GetEid() uint32 {
 	return ego.eid
 }
 
 /*
 Get Entry detected encoding.
 */
-func (ego *entry) GetEncoding() string {
+func (ego *Entry) GetEncoding() string {
 	return ego.encoding
 }
 
 /*
 Get Entry renaming.
 
-You may set entry destination by hand by setting this.
+You may set Entry destination by hand by setting this.
 */
-func (ego *entry) GetRenaming() string {
+func (ego *Entry) GetRenaming() string {
 	return ego.renaming
 }
 
-func (ego *entry) updateError() {
+func (ego *Entry) updateError() {
 	ego.err = ego.entryC.error
 }
 
 /*
 Get error record.
 */
-func (ego *entry) GetError() error {
+func (ego *Entry) GetError() error {
 
 	ego.updateError()
 
@@ -137,24 +131,30 @@ func (ego *entry) GetError() error {
 /*
 Get unpacked size.
 */
-func (ego *entry) GetSize() uint {
+func (ego *Entry) GetSize() uint {
 	return ego.size
 }
 
 /*
-Sets renaming for the entry from constant string and allocates copy.
+Sets renaming for the Entry from constant string and allocates copy.
 
 Parameters:
   - renaming - path with a new name.
 */
-func (ego *entry) SetRenaming(renaming string) {
+func (ego *Entry) SetRenaming(renaming string) {
 	C.EntrySetRenaming(ego.entryC, C.CString(renaming))
 	ego.renaming = renaming
 }
 
-func (ego *entry) Destroy() error {
+/*
+Destroys individual Entry.
+
+Returns:
+	- error if Entry has been already destroyed.
+*/
+func (ego *Entry) Destroy() error {
 	if ego.entryC == nil {
-		return fmt.Errorf("Entry has been already destroyed.")
+		return fmt.Errorf("*Entry has been already destroyed.")
 	}
 
 	C.EntryDestroy(ego.entryC)
@@ -169,9 +169,9 @@ Parameters:
   - entries - slice of Entries to be destroyed.
 
 Returns:
-  - error if any of the entry has already been destroyed.
+  - error if any of the Entry has already been destroyed.
 */
-func DestroyList(entries []Entry) error {
+func DestroyList(entries []IEntry) error {
 	for j := 0; j < len(entries); j++ {
 		curr := entries[j]
 		err := curr.Destroy()

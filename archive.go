@@ -16,10 +16,10 @@ import (
 
 const POINTER_SIZE = bits.UintSize / 8
 
-type Archive interface {
-	List() []Entry
-	Extract([]entry)
-	SetBatch(int, []Entry)
+type IArchive interface {
+	List() []IEntry
+	Extract([]IEntry)
+	SetBatch(int, []IEntry)
 	Destroy() error
 	SetDestination(string)
 	SetPassword(string)
@@ -33,7 +33,7 @@ type Archive interface {
 	SetMacResourceForkStyle(bool)
 }
 
-type archive struct {
+type Archive struct {
 	path       string
 	Err        error
 	batch      int
@@ -47,12 +47,13 @@ type archive struct {
 Creates a new Archive. Has to be deallocated with Destroy method after use.
 
 Parameters:
-  - path - path to the existing archive
+  - path - path to the existing Archive.
+
 Returns:
   - pointer to a new instance of Archive.
 */
-func NewArchive(path string) *archive {
-	out := &archive{}
+func NewArchive(path string) *Archive {
+	out := &Archive{}
 	out.path = path
 
 	out.archive = C.ArchiveNew(C.CString(path))
@@ -64,27 +65,27 @@ func NewArchive(path string) *archive {
 }
 
 /*
-Lists content of an archive in form of arrays.
+Lists content of an Archive in form of arrays.
 
 Entry records must be destroyed by DestroyList() call explicitly.
-Alternatively, it is possible to destroy individual entries using the Destroy() function.
+Alternatively, it is possible to destroy individual Entries using the Destroy() function.
 
 Returns:
-  - Slice of Entries.
+  - slice of Entries.
 */
-func (ego *archive) List() []Entry {
+func (ego *Archive) List() []IEntry {
 
 	ego.entries = C.ArchiveList(ego.archive)
-	es := make([]Entry, 0)
+	es := make([]IEntry, 0)
 
 	for elem := ego.entries; *elem != nil; elem = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(elem), POINTER_SIZE)) {
-		es = append(es, &entry{
+		es = append(es, &Entry{
 			filename:   C.GoString((*elem).filename),
-			dirP:       int((*elem).dirP),
-			linkP:      int((*elem).linkP),
-			resourceP:  int((*elem).resourceP),
-			corruptedP: int((*elem).corruptedP),
-			encryptedP: int((*elem).encryptedP),
+			dirP:       int((*elem).dirP) != 0,
+			linkP:      int((*elem).linkP) != 0,
+			resourceP:  int((*elem).resourceP) != 0,
+			corruptedP: int((*elem).corruptedP) != 0,
+			encryptedP: int((*elem).encryptedP) != 0,
 			eid:        uint32((*elem).eid),
 			encoding:   C.GoString((*elem).encoding),
 			renaming:   C.GoString((*elem).renaming),
@@ -99,13 +100,13 @@ func (ego *archive) List() []Entry {
 }
 
 /*
-Creates a NULL terminated subset of the entries array.
+Creates a NULL-terminated subset of the Entries array.
 
 Returns:
-  - Newly created subse,
+  - newly created subset,
   - number of items in the subset (0 < number <= batch).
 */
-func (ego *archive) makeSubSet() (**C.struct_Entry, int) {
+func (ego *Archive) makeSubSet() (**C.struct_Entry, int) {
 	subSet := (**C.struct_Entry)(C.calloc(C.ulong(ego.batch+1), C.ulong(unsafe.Sizeof(*ego.entries))))
 	tmp := subSet
 	i := 0
@@ -118,12 +119,12 @@ func (ego *archive) makeSubSet() (**C.struct_Entry, int) {
 }
 
 /*
-Extract from the archive. If batch > -1, only batch entries are extracted.
+Extract from the Archive. If batch > -1, only batch Entries are extracted.
 
 Parameters:
-  - entries - Slice of entries.
+  - entries - slice of Entries.
 */
-func (ego *archive) Extract(entries []Entry) {
+func (ego *Archive) Extract(entries []IEntry) {
 	if ego.batch == 0 {
 		return
 	} else if ego.batch == -1 {
@@ -145,7 +146,7 @@ func (ego *archive) Extract(entries []Entry) {
 /*
 Updates Archive error.
 */
-func (ego *archive) updateArchiveError() {
+func (ego *Archive) updateArchiveError() {
 	if ego.archive.error_num != C.NO_ERROR {
 		err := C.GoString(ego.archive.error_str)
 		ego.Err = errors.New(err)
@@ -153,12 +154,12 @@ func (ego *archive) updateArchiveError() {
 }
 
 /*
-Updates errors in individual entries.
+Updates errors in individual Entries.
 
 Parameters:
-  - entries - Slice of entries for which errors are to be updated.
+  - entries - slice of Entries for which errors are to be updated.
 */
-func (ego *archive) updateEntriesErrors(entries []Entry) {
+func (ego *Archive) updateEntriesErrors(entries []IEntry) {
 	for i := 0; i < len(entries); i++ {
 		entries[i].updateError()
 	}
@@ -170,9 +171,9 @@ If batch <= -1, everything will be extracted at once.
 
 Parameters:
   - batch - number of Entries,
-  - entries - The slice of Entries.
+  - entries - the slice of Entries.
 */
-func (ego *archive) SetBatch(batch int, entries []Entry) {
+func (ego *Archive) SetBatch(batch int, entries []IEntry) {
 	if batch <= -1 || batch >= len(entries) {
 		return
 	}
@@ -184,10 +185,10 @@ func (ego *archive) SetBatch(batch int, entries []Entry) {
 Updates the frame that shows what will subsequently be extracted.
 
 Parameters:
-  - start - Where to move the frame start pointer,
+  - start - where to move the frame start pointer,
   - step - maximum batch size.
 */
-func (ego *archive) setFrame(start **C.struct_Entry, step int) {
+func (ego *Archive) setFrame(start **C.struct_Entry, step int) {
 	ego.batchStart = start
 	ego.batchEnd = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(ego.batchStart), (POINTER_SIZE * step)))
 }
@@ -195,10 +196,10 @@ func (ego *archive) setFrame(start **C.struct_Entry, step int) {
 /*
 Destroys the Archive.
 
-Return:
-  - error, if archive has been already destroyed, nil otherwise.
+Returns:
+  - error, if Archive has been already destroyed, nil otherwise.
 */
-func (ego *archive) Destroy() error {
+func (ego *Archive) Destroy() error {
 	if ego.archive == nil {
 		return fmt.Errorf("Archive has been already destroyed.")
 	}
@@ -215,43 +216,43 @@ func (ego *archive) Destroy() error {
 }
 
 /*
-Sets default destination for entries at extraction.
-Destination setting is important for not renamed entries only. Otherwise ignored.
+Sets default destination for Entries at extraction.
+Destination setting is important for not renamed Entries only. Otherwise ignored.
 
 Parameters:
-  - path - The destination path.
+  - path - the destination path.
 */
-func (ego *archive) SetDestination(path string) {
+func (ego *Archive) SetDestination(path string) {
 	C.ArchiveSetDestination(ego.archive, C.CString(path))
 }
 
 /*
-Sets default password for entries at extraction.
+Sets default password for Entries at extraction.
 
 Parameters:
-  - password - The password.
+  - password - the password.
 */
-func (ego *archive) SetPassword(password string) {
+func (ego *Archive) SetPassword(password string) {
 	C.ArchiveSetPassword(ego.archive, C.CString(password))
 }
 
 /*
-Sets default encoding name for entries at extraction.
+Sets default encoding name for Entries at extraction.
 
 Parameters:
-  - encodingName - The encoding name.
+  - encodingName - the encoding name.
 */
-func (ego *archive) SetEncodingName(encodingName string) {
+func (ego *Archive) SetEncodingName(encodingName string) {
 	C.ArchiveSetEncodingName(ego.archive, C.CString(encodingName))
 }
 
 /*
-Sets default password encoding name for entries at extraction.
+Sets default password encoding name for Entries at extraction.
 
 Parameters:
-  - passEncodingName - The password encoding name.
+  - passEncodingName - the password encoding name.
 */
-func (ego *archive) SetPasswordEncodingName(passEncodingName string) {
+func (ego *Archive) SetPasswordEncodingName(passEncodingName string) {
 	C.ArchiveSetPasswordEncodingName(ego.archive, C.CString(passEncodingName))
 }
 
@@ -268,7 +269,7 @@ Sets if always overwrite files if they are present on the destination path.
 Parameters:
   - alwaysOverwriteFiles
 */
-func (ego *archive) SetAlwaysOverwritesFiles(alwaysOverwriteFiles bool) {
+func (ego *Archive) SetAlwaysOverwritesFiles(alwaysOverwriteFiles bool) {
 
 	C.ArchiveSetAlwaysOverwritesFiles(ego.archive, goBoolToCInt(alwaysOverwriteFiles))
 }
@@ -279,7 +280,7 @@ Sets if always skip files on error.
 Parameters:
   - alwaysSkipsFiles
 */
-func (ego *archive) SetAlwaysSkipsFiles(alwaysSkipsFiles bool) {
+func (ego *Archive) SetAlwaysSkipsFiles(alwaysSkipsFiles bool) {
 	C.ArchiveSetAlwaysSkipsFiles(ego.archive, goBoolToCInt(alwaysSkipsFiles))
 }
 
@@ -289,7 +290,7 @@ Sets if extract also included subarchives. Not recommended set to yes - unsuffic
 Parameters:
   - extractsSubArchives
 */
-func (ego *archive) SetExtractsSubArchives(extractsSubArchives bool) {
+func (ego *Archive) SetExtractsSubArchives(extractsSubArchives bool) {
 	C.ArchiveSetExtractsSubArchives(ego.archive, goBoolToCInt(extractsSubArchives))
 }
 
@@ -299,17 +300,17 @@ Sets if propagate relevant metadata (passwords etc.). Not recommended set to yes
 Parameters:
   - propagatesRelevantMetadata
 */
-func (ego *archive) SetPropagatesRelevantMetadata(propagatesRelevantMetadata bool) {
+func (ego *Archive) SetPropagatesRelevantMetadata(propagatesRelevantMetadata bool) {
 	C.ArchiveSetPropagatesRelevantMetadata(ego.archive, goBoolToCInt(propagatesRelevantMetadata))
 }
 
 /*
-Sets if to set entries' modification time also to the destination files.
+Sets if to set Entries modification time also to the destination files.
 
 Parameters:
   - copiesArchiveModificationTimeToEnclosingDirectory
 */
-func (ego *archive) SetCopiesArchiveModificationTimeToEnclosingDirectory(copiesArchiveModificationTimeToEnclosingDirectory bool) {
+func (ego *Archive) SetCopiesArchiveModificationTimeToEnclosingDirectory(copiesArchiveModificationTimeToEnclosingDirectory bool) {
 	C.ArchiveSetCopiesArchiveModificationTimeToEnclosingDirectory(ego.archive, goBoolToCInt(copiesArchiveModificationTimeToEnclosingDirectory))
 }
 
@@ -319,6 +320,6 @@ Sets if to use MacOS forking style. Not recommended - not tested on Linux, just 
 Parameters:
   - macResourceForkStyle
 */
-func (ego *archive) SetMacResourceForkStyle(macResourceForkStyle bool) {
+func (ego *Archive) SetMacResourceForkStyle(macResourceForkStyle bool) {
 	C.ArchiveSetMacResourceForkStyle(ego.archive, goBoolToCInt(macResourceForkStyle))
 }

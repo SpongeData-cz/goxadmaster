@@ -9,7 +9,6 @@ inline void EntrySetRenaming(Entry * self, const char * renaming);
 import "C"
 import (
 	"errors"
-	"fmt"
 )
 
 type IEntry interface {
@@ -150,11 +149,11 @@ func (ego *Entry) SetRenaming(renaming string) {
 Destroys individual Entry.
 
 Returns:
-	- error if Entry has been already destroyed.
+  - error if Entry has been already destroyed.
 */
 func (ego *Entry) Destroy() error {
 	if ego.entryC == nil {
-		return fmt.Errorf("*Entry has been already destroyed.")
+		return errors.New("entry has been already destroyed")
 	}
 
 	C.EntryDestroy(ego.entryC)

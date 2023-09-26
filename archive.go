@@ -9,7 +9,6 @@ inline void EntrySetRenaming(Entry * self, const char * renaming);
 import "C"
 import (
 	"errors"
-	"fmt"
 	"math/bits"
 	"unsafe"
 )
@@ -78,7 +77,7 @@ func (ego *Archive) List() []IEntry {
 	ego.entries = C.ArchiveList(ego.archive)
 	es := make([]IEntry, 0)
 
-	for elem := ego.entries; *elem != nil; elem = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(elem), POINTER_SIZE)) {
+	for elem := ego.entries; elem != nil && *elem != nil; elem = (**C.struct_Entry)(unsafe.Add(unsafe.Pointer(elem), POINTER_SIZE)) {
 		es = append(es, &Entry{
 			filename:   C.GoString((*elem).filename),
 			dirP:       int((*elem).dirP) != 0,
@@ -201,7 +200,7 @@ Returns:
 */
 func (ego *Archive) Destroy() error {
 	if ego.archive == nil {
-		return fmt.Errorf("Archive has been already destroyed.")
+		return errors.New("archive has been already destroyed")
 	}
 
 	C.ArchiveDestroy(ego.archive)
